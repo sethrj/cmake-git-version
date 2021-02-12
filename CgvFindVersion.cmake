@@ -1,8 +1,21 @@
 #---------------------------------*-CMake-*----------------------------------#
-# Copyright 2021 UT-Battelle, LLC
-# License-Filename: LICENSE
 # SPDX-License-Identifier: Apache-2.0
-# Author: Seth R Johnson
+#
+# https://github.com/sethrj/cmake-git-version
+#
+#  Copyright 2021 UT-Battelle, LLC and Seth R Johnson
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
 #[=======================================================================[.rst:
 
 CgvFindVersion
@@ -13,13 +26,10 @@ CgvFindVersion
   Get the project version using Git descriptions to ensure the version numbers
   are always synchronized between Git and CMake::
 
-    cgv_find_version([<projname>] [<git_version_file>])
+    cgv_find_version([<projname>])
 
   ``<projname>``
     Name of the project.
-
-  ``<git_version_file>``
-    Path to the git-version.txt file containing git ``$Format$`` strings.
 
   This command sets the following variables in the parent package::
 
@@ -41,6 +51,13 @@ CgvFindVersion
 
     v([0-9.]+)(-dev[0-9.]+)?
 
+
+  .. note:: In order for this script to work properly with archived git
+    repositories (generated with ``git-archive`` or GitHub's release tarball
+    feature), it's necessary to add to your ``.gitattributes`` file::
+
+      CgvFindVersion.cmake export-subst
+
 #]=======================================================================]
 
 if(CMAKE_SCRIPT_MODE_FILE)
@@ -48,30 +65,23 @@ if(CMAKE_SCRIPT_MODE_FILE)
 endif()
 
 function(cgv_find_version)
-  set(projname "${ARG0}")
-  set(git_version_file "${ARG1}")
+  set(projname "${ARGV0}")
   if(NOT projname)
     set(projname "${CMAKE_PROJECT_NAME}")
     if(NOT projname)
       message(FATAL_ERROR "Project name is not defined")
     endif()
   endif()
-  if(NOT git_version_file)
-    set(git_version_file "${CMAKE_CURRENT_LIST_DIR}/CgvFindVersion/exported-version.txt")
-    if(NOT EXISTS ${git_version_file})
-      message(FATAL_ERROR "Git version file '${git_version_file}' "
-        "does not exist")
-    endif()
-  endif()
 
   # Get a possible Git version generated using git-archive (see the
   # .gitattributes file)
-  file(STRINGS "${git_version_file}" _TEXTFILE)
+  set(_ARCHIVE_TAG "$Format:%D$")
+  set(_ARCHIVE_HASH "$Format:%h$")
 
   set(_TAG_REGEX "v([0-9.]+)(-dev[0-9.]+)?")
   set(_HASH_REGEX "([0-9a-f]+)")
 
-  if(_TEXTFILE MATCHES "\\$Format:")
+  if(_ARCHIVE_HASH MATCHES "%h")
     # Not a "git archive": use live git information
     set(_CACHE_VAR "${projname}_GIT_DESCRIBE")
     set(_CACHED_VERSION "${${_CACHE_VAR}}")
@@ -80,17 +90,16 @@ function(cgv_find_version)
       if(NOT GIT_EXECUTABLE)
         find_package(Git QUIET REQUIRED)
       endif()
-      get_filename_component(_GIT_DIR "${git_version_file}" DIRECTORY)
       execute_process(
         COMMAND "${GIT_EXECUTABLE}" "describe" "--tags" "--match" "v*"
-        WORKING_DIRECTORY "${_GIT_DIR}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
         ERROR_VARIABLE _GIT_ERR
         OUTPUT_VARIABLE _VERSION_STRING
         RESULT_VARIABLE _GIT_RESULT
         OUTPUT_STRIP_TRAILING_WHITESPACE
       )
       if(_GIT_RESULT)
-        message(WARNING "Failed to get ${projname} version from git: "
+        message(AUTHOR_WARNING "No git tags in ${projname} matched 'v*': "
           "${_GIT_ERR}")
       elseif(NOT _VERSION_STRING)
         message(WARNING "Failed to get ${projname} version from git: "
@@ -113,7 +122,7 @@ function(cgv_find_version)
       if(NOT _VERSION_STRING)
         execute_process(
           COMMAND "${GIT_EXECUTABLE}" "log" "-1" "--format=%h" "HEAD"
-          WORKING_DIRECTORY "${_GIT_DIR}"
+          WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
           OUTPUT_VARIABLE _VERSION_HASH
           OUTPUT_STRIP_TRAILING_WHITESPACE
         )
@@ -126,16 +135,15 @@ function(cgv_find_version)
     list(GET _CACHED_VERSION 1 _VERSION_STRING_SUFFIX)
     list(GET _CACHED_VERSION 2 _VERSION_HASH)
   else()
-    # First line are decorators, second is hash.
-    list(GET _TEXTFILE 0 _TAG)
-    string(REGEX MATCH "tag: *${_tag_regex}" _MATCH "${_TAG}")
+    string(REGEX MATCH "tag: *${_TAG_REGEX}" _MATCH "${_ARCHIVE_TAG}")
     if(_MATCH)
       set(_VERSION_STRING "${CMAKE_MATCH_1}")
       set(_VERSION_STRING_SUFFIX "${CMAKE_MATCH_2}")
     else()
-      # *not* a tagged release
-      list(GET _TEXTFILE 1 _HASH)
-      string(REGEX MATCH " *${_HASH_REGEX}" _MATCH "${_HASH}")
+      message(AUTHOR_WARNING "Could not match a version tag for "
+        "git description '${_ARCHIVE_TAG}': perhaps this archive was not "
+        "exported from a tagged commit?")
+      string(REGEX MATCH " *${_HASH_REGEX}" _MATCH "${_ARCHIVE_HASH}")
       if(_MATCH)
         set(_VERSION_HASH "${CMAKE_MATCH_1}")
       endif()
@@ -143,8 +151,6 @@ function(cgv_find_version)
   endif()
 
   if(NOT _VERSION_STRING)
-    message(WARNING "Could not determine version number for ${projname}: "
-      "perhaps a non-release archive?")
     set(_VERSION_STRING "0.0.0")
   endif()
 
@@ -159,12 +165,7 @@ function(cgv_find_version)
 endfunction()
 
 if(CMAKE_SCRIPT_MODE_FILE)
-  # This script is being run from the command line. Useful for debugging.
-  if(NOT DEFINED CGV_FILE)
-    message(FATAL_ERROR "Run this script with "
-      "cmake -D CGV_FILE=CgvFindVersion/exported-version.txt -P CgvFindVersion.cmake")
-  endif()
-  cgv_find_version(TEMP ${CGV_FILE})
-  message(STATUS "${TEMP_VERSION}")
-  message(STATUS "${TEMP_VERSION_STRING}")
+  cgv_find_version(TEMP)
+  message("VERSION=\"${TEMP_VERSION}\"")
+  message("VERSION_STRING=\"${TEMP_VERSION_STRING}\"")
 endif()
