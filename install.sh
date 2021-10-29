@@ -17,6 +17,8 @@ SRC="$(dirname "$0")/CgvFindVersion.cmake"
 DST="$1/CgvFindVersion.cmake"
 cp "$SRC" "$DST"
 echo "-- Copied script to $DST" >&2
+VERSION="$(cmake -D ONLY=VERSION_STRING -P $SRC  3>&2 2>&1 1>&3)"
+echo "\n# cmake-git-version ${VERSION}" >> "${DST}"
 
 GITATTR="$1/.gitattributes"
 if [ ! -e "$GITATTR" ] \
