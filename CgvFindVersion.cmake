@@ -31,13 +31,15 @@ CgvFindVersion
   ``<projname>``
     Name of the project.
 
-  This command sets the following variables in the parent package::
+  This command sets the numeric (usable in CMake version comparisons) and
+  extended (useful for exact versioning) version variables in the parent
+  package::
 
     ${projname}_VERSION
     ${projname}_VERSION_STRING
 
-  It takes the project name and version file path as optional arguments to
-  support using it before the CMake ``project`` command.
+  It takes the project name as an optional argument so that it may be used
+  *before* calling the CMake ``project`` command.
 
   The project version string uses an approximation to SemVer strings, appearing
   as v0.1.2 if the version is actually a tagged release, or v0.1.3+abcdef if
@@ -47,10 +49,13 @@ CgvFindVersion
   it's impossible to determine the version from the tag, so a warning will be
   issued and the version will be set to 0.0.0.
 
-  The exact regex used to match the version tag is::
+  The default regex used to match the numeric version and full version string
+  from the git tag is::
 
     v([0-9.]+)(-dev[0-9.]+)?
 
+  but you can override the regex by setting the ``CGV_TAG_REGEX`` variable
+  before calling ``cgv_find_version``.
 
   .. note:: In order for this script to work properly with archived git
     repositories (generated with ``git-archive`` or GitHub's release tarball
@@ -65,8 +70,9 @@ if(CMAKE_SCRIPT_MODE_FILE)
 endif()
 
 function(cgv_find_version)
-  set(projname "${ARGV0}")
-  if(NOT projname)
+  if(ARGC GREATER 0)
+    set(projname "${ARGV0}")
+  else()
     set(projname "${CMAKE_PROJECT_NAME}")
     if(NOT projname)
       message(FATAL_ERROR "Project name is not defined")
@@ -78,7 +84,9 @@ function(cgv_find_version)
   set(_ARCHIVE_TAG "$Format:%D$")
   set(_ARCHIVE_HASH "$Format:%h$")
 
-  set(_TAG_REGEX "v([0-9.]+)(-dev[0-9.]+)?")
+  if(NOT CGV_TAG_REGEX)
+    set(CGV_TAG_REGEX "v([0-9.]+)(-dev[0-9.]+)?")
+  endif()
   set(_HASH_REGEX "([0-9a-f]+)")
 
   if(_ARCHIVE_HASH MATCHES "%h")
@@ -111,7 +119,7 @@ function(cgv_find_version)
       else()
         # Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0
         # or v2.0.0-dev2
-        string(REGEX MATCH "^${_TAG_REGEX}(-[0-9]+-g${_HASH_REGEX})?" _MATCH
+        string(REGEX MATCH "^${CGV_TAG_REGEX}(-[0-9]+-g${_HASH_REGEX})?" _MATCH
           "${_VERSION_STRING}"
         )
         if(_MATCH)
@@ -139,7 +147,7 @@ function(cgv_find_version)
     list(GET _CACHED_VERSION 1 _VERSION_STRING_SUFFIX)
     list(GET _CACHED_VERSION 2 _VERSION_HASH)
   else()
-    string(REGEX MATCH "tag: *${_TAG_REGEX}" _MATCH "${_ARCHIVE_TAG}")
+    string(REGEX MATCH "tag: *${CGV_TAG_REGEX}" _MATCH "${_ARCHIVE_TAG}")
     if(_MATCH)
       set(_VERSION_STRING "${CMAKE_MATCH_1}")
       set(_VERSION_STRING_SUFFIX "${CMAKE_MATCH_2}")
