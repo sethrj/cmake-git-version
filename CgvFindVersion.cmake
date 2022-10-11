@@ -3,7 +3,7 @@
 #
 # https://github.com/sethrj/cmake-git-version
 #
-# Copyright 2021 UT-Battelle, LLC
+# Copyright 2021-2022 UT-Battelle, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,15 +79,16 @@ function(cgv_find_version)
     endif()
   endif()
 
-  # Get a possible Git version generated using git-archive (see the
-  # .gitattributes file)
-  set(_ARCHIVE_TAG "$Format:%D$")
-  set(_ARCHIVE_HASH "$Format:%h$")
-
   if(NOT CGV_TAG_REGEX)
     set(CGV_TAG_REGEX "v([0-9.]+)(-dev[0-9.]+)?")
   endif()
   set(_HASH_REGEX "([0-9a-f]+)")
+
+  # Get a possible Git version generated using git-archive (see the
+  # .gitattributes file)
+  set(_ARCHIVE_DESCR "$Format:%$")
+  set(_ARCHIVE_TAG "$Format:%D$")
+  set(_ARCHIVE_HASH "$Format:%h$")
 
   if(_ARCHIVE_HASH MATCHES "%h")
     # Not a "git archive": use live git information
@@ -119,7 +120,7 @@ function(cgv_find_version)
       else()
         # Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0
         # or v2.0.0-dev2
-        string(REGEX MATCH "^${CGV_TAG_REGEX}(-[0-9]+-g${_HASH_REGEX})?" _MATCH
+        string(REGEX MATCH "^${CGV_TAG_REGEX}(-([0-9]+)-g${_HASH_REGEX})?" _MATCH
           "${_VERSION_STRING}"
         )
         if(_MATCH)
@@ -127,7 +128,8 @@ function(cgv_find_version)
           set(_VERSION_STRING_SUFFIX "${CMAKE_MATCH_2}")
           if(CMAKE_MATCH_3)
             # *not* a tagged release
-            set(_VERSION_HASH "${CMAKE_MATCH_4}")
+            set(_VERSION_STRING_SUFFIX "${CMAKE_MATCH_2}-${CMAKE_MATCH_4}")
+            set(_VERSION_HASH "${CMAKE_MATCH_5}")
           endif()
         endif()
       endif()
