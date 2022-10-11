@@ -1,13 +1,14 @@
 # CMake Git Version
 
 Seamlessly integrate git version tags into your CMake project. Inspired by
-[Versioneer for Python projects]
-(https://github.com/python-versioneer/python-versioneer).
+[Versioneer for Python projects][1].
 
 This small CMake script ensures that your project's internal
 version metadata is always up-to-date with Git version data, whether your
 repository is cloned or exported as a source tarball via the GitHub release
 mechanism.
+
+[1]: https://github.com/python-versioneer/python-versioneer
 
 ## Installation
 
