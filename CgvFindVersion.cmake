@@ -198,7 +198,7 @@ function(cgv_find_version)
   endif()
 
   if(NOT CGV_TAG_REGEX)
-    set(CGV_TAG_REGEX "v([0-9.]+)(-dev[0-9.]+)?")
+    set(CGV_TAG_REGEX "v([0-9.]+)(-dev[0-9.]*)?")
   endif()
 
   set(CGV_CACHE_VAR "${CGV_PROJECT}_GIT_DESCRIBE")
