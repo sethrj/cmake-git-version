@@ -89,7 +89,7 @@ endfunction()
 function(_cgv_try_archive_md)
   # Get a possible Git version generated using git-archive (see the
   # .gitattributes file)
-  set(_ARCHIVE_DESCR "$Format:%$")
+  set(_ARCHIVE_DESCR "$Format:%(describe:tags)$")
   set(_ARCHIVE_TAG "$Format:%D$")
   set(_ARCHIVE_HASH "$Format:%h$")
   if(_ARCHIVE_HASH MATCHES "Format:%h")
