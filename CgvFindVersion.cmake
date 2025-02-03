@@ -52,7 +52,7 @@ CgvFindVersion
   The default regex used to match the numeric version and full version string
   from the git tag is::
 
-    v([0-9.]+)(-dev[0-9.]+)?
+    v([0-9.]+)(-[a-z]+[0-9.]*)?
 
   but you can override the regex by setting the ``CGV_TAG_REGEX`` variable
   before calling ``cgv_find_version``.
@@ -142,8 +142,7 @@ function(_cgv_try_git_describe)
     return()
   endif()
 
-  # Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0
-  # or v2.0.0-dev2
+  # Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0 or v2.0.0-rc.2
   set(_DESCR_REGEX "^${CGV_TAG_REGEX}(-([0-9]+)-g([0-9a-f]+))?")
   string(REGEX MATCH "${_DESCR_REGEX}" _MATCH "${_VERSION_STRING}")
   if(NOT _MATCH)
