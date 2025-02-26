@@ -92,7 +92,7 @@ function(_cgv_try_parse_git_describe version_string)
   #  1: primary version (1.2.3)
   #  2: pre-release: dev/alpha/rc annotation (-rc.1)
   #  3: post-tag description (-123-gabcd123)
-  #  4: number of commits since (aka distance to) tag (123)
+  #  4: number of commits since tag (123)
   #  5: commit hash (abcd213)
   set(_DESCR_REGEX "^${CGV_TAG_REGEX}(-([0-9]+)-g([0-9a-f]+))?")
   string(REGEX MATCH "${_DESCR_REGEX}" _MATCH "${version_string}")
@@ -103,17 +103,24 @@ function(_cgv_try_parse_git_describe version_string)
     return()
   endif()
 
-  if(CMAKE_MATCH_2)
-    set(_suffix ${CMAKE_MATCH_2}.${CMAKE_MATCH_4})
-  else()
-    set(_suffix -${CMAKE_MATCH_4})
+  if(NOT CMAKE_MATCH_3)
+    # This is a tagged release!
+    _cgv_store_version("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}" "")
+    return()
   endif()
 
-  # Qualify the version number with the distance-to-tag and hash
+  if(CMAKE_MATCH_2)
+    # After a pre-release
+    set(_suffix ${CMAKE_MATCH_2}-${CMAKE_MATCH_4})
+  else()
+    # After a release
+    set(_suffix -${CMAKE_MATCH_4})
+  endif()
+  # Qualify the version number and save the hash
   _cgv_store_version(
-    "${CMAKE_MATCH_1}" # 1.2.3
-    "${_suffix}"
-    "${CMAKE_MATCH_5}"
+    "${CMAKE_MATCH_1}" # [0-9.]+
+    "${_suffix}" # (-dev[0-9.]*)? \. ([0-9]+)
+    "${CMAKE_MATCH_5}" ([0-9a-f]+)
   )
 endfunction()
 
@@ -128,6 +135,14 @@ function(_cgv_try_archive_md)
   if(_ARCHIVE_HASH MATCHES "^\\$.*\\$$")
     # Not a git archive
     return()
+  endif()
+
+  if(_ARCHIVE_DESCR)
+    _cgv_try_parse_git_describe("${_ARCHIVE_DESCR}")
+    if(${CGV_CACHE_VAR})
+      # Successfully parsed description
+      return()
+    endif()
   endif()
 
   string(REGEX MATCH "tag: *${CGV_TAG_REGEX}" _MATCH "${_ARCHIVE_TAG}")
