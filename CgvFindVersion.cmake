@@ -79,9 +79,42 @@ function(_cgv_store_version string suffix hash)
   set(_CACHED_VERSION "${string}" "${suffix}" "${hash}")
   # Note: extra 'unset' is necessary if using CMake presets with
   # ${CGV_PROJECT}_GIT_DESCRIBE="", even with INTERNAL/FORCE
-  unset(${CGV_CACHE_VAR} CACHE)
-  set(${CGV_CACHE_VAR} "${_CACHED_VERSION}" CACHE INTERNAL
+  unset("${CGV_CACHE_VAR}" CACHE)
+  set("${CGV_CACHE_VAR}" "${_CACHED_VERSION}" CACHE INTERNAL
     "Version string and hash for ${CGV_PROJECT}")
+endfunction()
+
+#-----------------------------------------------------------------------------#
+# Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0 or v2.0.0-rc.2
+
+function(_cgv_try_parse_git_describe version_string)
+  # Regex groups:
+  #  1: primary version (1.2.3)
+  #  2: pre-release: dev/alpha/rc annotation (-rc.1)
+  #  3: post-tag description (-123-gabcd123)
+  #  4: number of commits since (aka distance to) tag (123)
+  #  5: commit hash (abcd213)
+  set(_DESCR_REGEX "^${CGV_TAG_REGEX}(-([0-9]+)-g([0-9a-f]+))?")
+  string(REGEX MATCH "${_DESCR_REGEX}" _MATCH "${version_string}")
+  if(NOT _MATCH)
+    message(WARNING
+      "Failed to parse description '${version_string}' with regex '${_DESCR_REGEX}'"
+    )
+    return()
+  endif()
+
+  if(CMAKE_MATCH_2)
+    set(_suffix ${CMAKE_MATCH_2}.${CMAKE_MATCH_4})
+  else()
+    set(_suffix -${CMAKE_MATCH_4})
+  endif()
+
+  # Qualify the version number with the distance-to-tag and hash
+  _cgv_store_version(
+    "${CMAKE_MATCH_1}" # 1.2.3
+    "${_suffix}"
+    "${CMAKE_MATCH_5}"
+  )
 endfunction()
 
 #-----------------------------------------------------------------------------#
@@ -92,7 +125,7 @@ function(_cgv_try_archive_md)
   set(_ARCHIVE_DESCR "$Format:%(describe:tags)$")
   set(_ARCHIVE_TAG "$Format:%D$")
   set(_ARCHIVE_HASH "$Format:%h$")
-  if(_ARCHIVE_HASH MATCHES "Format:%h")
+  if(_ARCHIVE_HASH MATCHES "^\\$.*\\$$")
     # Not a git archive
     return()
   endif()
@@ -100,15 +133,22 @@ function(_cgv_try_archive_md)
   string(REGEX MATCH "tag: *${CGV_TAG_REGEX}" _MATCH "${_ARCHIVE_TAG}")
   if(_MATCH)
     _cgv_store_version("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}" "")
-  else()
-    message(WARNING "Could not match a version tag for "
-      "git description '${_ARCHIVE_TAG}': perhaps this archive was not "
-      "exported from a tagged commit?")
-    string(REGEX MATCH " *([0-9a-f]+)" _MATCH "${_ARCHIVE_HASH}")
-    if(_MATCH)
-      _cgv_store_version("" "" "${CMAKE_MATCH_1}")
-    endif()
+    return()
   endif()
+
+  message(WARNING
+    "Could not match a version tag for "
+    "git description '${_ARCHIVE_TAG}': perhaps this archive was not "
+    "exported from a tagged commit?"
+  )
+  string(REGEX MATCH " *([0-9a-f]+)" _MATCH "${_ARCHIVE_HASH}")
+  if(NOT _MATCH)
+    # Could not even find a git hash
+    return()
+  endif()
+
+  # Found a hash but no version
+  _cgv_store_version("" "" "${CMAKE_MATCH_1}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
@@ -133,8 +173,7 @@ function(_cgv_try_git_describe)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   if(_GIT_RESULT)
-    message(WARNING "No git tags in ${CGV_PROJECT} matched 'v*': "
-      "${_GIT_ERR}")
+    message(WARNING "No git tags in ${CGV_PROJECT} matched 'v*': ${_GIT_ERR}")
     return()
   elseif(NOT _VERSION_STRING)
     message(WARNING "Failed to get ${CGV_PROJECT} version from git: "
@@ -142,32 +181,7 @@ function(_cgv_try_git_describe)
     return()
   endif()
 
-  # Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0 or v2.0.0-rc.2
-  set(_DESCR_REGEX "^${CGV_TAG_REGEX}(-([0-9]+)-g([0-9a-f]+))?")
-  string(REGEX MATCH "${_DESCR_REGEX}" _MATCH "${_VERSION_STRING}")
-  if(NOT _MATCH)
-    message(WARNING "Failed to parse description '${_VERSION_STRING}' "
-      "with regex '${_DESCR_REGEX}'"
-    )
-    return()
-  endif()
-
-  if(NOT CMAKE_MATCH_3)
-    # This is a tagged release!
-    _cgv_store_version("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}" "")
-  else()
-    if(CMAKE_MATCH_2)
-      set(_suffix ${CMAKE_MATCH_2}.${CMAKE_MATCH_4})
-    else()
-      set(_suffix -${CMAKE_MATCH_4})
-    endif()
-    # Qualify the version number and save the hash
-    _cgv_store_version(
-      "${CMAKE_MATCH_1}" # [0-9.]+
-      "${_suffix}" # (-dev[0-9.]*)? \. ([0-9]+)
-      "${CMAKE_MATCH_5}" ([0-9a-f]+)
-    )
-  endif()
+  _cgv_try_parse_git_describe("${_VERSION_STRING}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
@@ -192,6 +206,31 @@ function(_cgv_try_git_hash)
   _cgv_store_version("" "" "${_VERSION_HASH}")
 endfunction()
 
+function(_cgv_try_all)
+  if(${CGV_CACHE_VAR})
+    # Previous configure already set the variable
+    return()
+  endif()
+
+  _cgv_try_archive_md()
+  if(${CGV_CACHE_VAR})
+    return()
+  endif()
+
+  _cgv_try_git_describe()
+  if(${CGV_CACHE_VAR})
+    return()
+  endif()
+
+  _cgv_try_git_hash()
+  if(${CGV_CACHE_VAR})
+    return()
+  endif()
+
+  # Fallback: no metadata detected
+  set(${CGV_CACHE_VAR} "" "-unknown" "")
+endfunction()
+
 #-----------------------------------------------------------------------------#
 
 function(cgv_find_version)
@@ -211,19 +250,8 @@ function(cgv_find_version)
 
   set(CGV_CACHE_VAR "${CGV_PROJECT}_GIT_DESCRIBE")
 
-  # Successively try archive metadata, git description, or just git hash
-  if(NOT ${CGV_CACHE_VAR})
-    _cgv_try_archive_md()
-    if(NOT ${CGV_CACHE_VAR})
-      _cgv_try_git_describe()
-      if(NOT ${CGV_CACHE_VAR})
-        _cgv_try_git_hash()
-        if(NOT ${CGV_CACHE_VAR})
-          set(${CGV_CACHE_VAR} "" "-unknown" "")
-        endif()
-      endif()
-    endif()
-  endif()
+  # Try all possible ways of obtaining metadata
+  _cgv_try_all()
 
   # Unpack stored version
   set(_CACHED_VERSION "${${CGV_CACHE_VAR}}")
