@@ -42,8 +42,9 @@ CgvFindVersion
   *before* calling the CMake ``project`` command.
 
   The project version string uses an approximation to SemVer strings, appearing
-  as v0.1.2 if the version is actually a tagged release, or v0.1.3+abcdef if
-  it's not.
+  as v0.1.2 if the version is actually a tagged release, or v0.1.3-2+abcdef if
+  it's not. Pre-releases should be tagged as v1.0.0-rc.1, and subsequent commits
+  will show as v1.0.0-rc.1.23+abc123.
 
   If a non-tagged version is exported, or an untagged shallow git clone is used,
   it's impossible to determine the version from the tag, so a warning will be
@@ -92,7 +93,7 @@ function(_cgv_try_parse_git_describe version_string)
   #  1: primary version (1.2.3)
   #  2: pre-release: dev/alpha/rc annotation (-rc.1)
   #  3: post-tag description (-123-gabcd123)
-  #  4: number of commits since tag (123)
+  #  4: number of commits since (aka distance to) tag (123)
   #  5: commit hash (abcd213)
   set(_DESCR_REGEX "^${CGV_TAG_REGEX}(-([0-9]+)-g([0-9a-f]+))?")
   string(REGEX MATCH "${_DESCR_REGEX}" _MATCH "${version_string}")
@@ -110,17 +111,18 @@ function(_cgv_try_parse_git_describe version_string)
   endif()
 
   if(CMAKE_MATCH_2)
-    # After a pre-release
-    set(_suffix ${CMAKE_MATCH_2}-${CMAKE_MATCH_4})
+    # After a pre-release, e.g. -rc.1
+    set(_prerelease "${CMAKE_MATCH_2}.${CMAKE_MATCH_4}")
   else()
-    # After a release
-    set(_suffix -${CMAKE_MATCH_4})
+    # After a release, e.g. -123
+    set(_prerelease "-${CMAKE_MATCH_4}")
   endif()
-  # Qualify the version number and save the hash
+
+  # Qualify the version number with the distance-to-tag and hash
   _cgv_store_version(
-    "${CMAKE_MATCH_1}" # [0-9.]+
-    "${_suffix}" # (-dev[0-9.]*)? \. ([0-9]+)
-    "${CMAKE_MATCH_5}" ([0-9a-f]+)
+    "${CMAKE_MATCH_1}" # 1.2.3
+    "${_prerelease}" # -rc.2.3, -beta.1, -123
+    "${CMAKE_MATCH_5}" # abcdef
   )
 endfunction()
 
