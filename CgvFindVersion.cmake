@@ -42,9 +42,9 @@ CgvFindVersion
   *before* calling the CMake ``project`` command.
 
   The project version string uses an approximation to SemVer strings, appearing
-  as v0.1.2 if the version is actually a tagged release, or v0.1.3-2+abcdef if
-  it's not. Pre-releases should be tagged as v1.0.0-rc.1, and subsequent commits
-  will show as v1.0.0-rc.1.23+abc123.
+  as v0.1.2 if the version is actually a tagged release, or
+  v0.1.3-2+branch.abcdef if it's not. Pre-releases should be tagged as
+  v1.0.0-rc.1, and subsequent commits will show as v1.0.0-rc.1.23+branch.abc123.
 
   If a non-tagged version is exported, or an untagged shallow git clone is used,
   it's impossible to determine the version from the tag, so a warning will be
@@ -147,7 +147,7 @@ endfunction()
 #-----------------------------------------------------------------------------#
 # Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0 or v2.0.0-rc.2
 
-function(_cgv_try_parse_git_describe version_string tsfile)
+function(_cgv_try_parse_git_describe version_string branch_string tsfile)
   # Regex groups:
   #  1: primary version (1.2.3)
   #  2: pre-release: dev/alpha/rc annotation (-rc.1)
@@ -177,11 +177,17 @@ function(_cgv_try_parse_git_describe version_string tsfile)
     set(_prerelease "-${CMAKE_MATCH_4}")
   endif()
 
+  if(branch_string)
+    set(_suffix "${branch_string}.${CMAKE_MATCH_5}")
+  else()
+    set(_suffix "${CMAKE_MATCH_5}")
+  endif()
+
   # Qualify the version number with the distance-to-tag and hash
   _cgv_store_version(
     "${CMAKE_MATCH_1}" # 1.2.3
     "${_prerelease}" # -rc.2.3, -beta.1, -123
-    "${CMAKE_MATCH_5}" # abcdef
+    "${_suffix}" # abcdef
     "${tsfile}" # timestamp file
   )
 endfunction()
@@ -200,9 +206,15 @@ function(_cgv_try_archive_md)
   endif()
 
   set(_TSFILE "${CMAKE_CURRENT_LIST_FILE}")
+  string(REGEX MATCH "->\\s+(\\S+)" _MATCH "${_ARCHIVE_TAG}")
+  if(_MATCH)
+    set(_BRANCH "${CMAKE_MATCH_1}")
+  else()
+    set(_BRANCH)
+  endif()
 
   if(_ARCHIVE_DESCR)
-    _cgv_try_parse_git_describe("${_ARCHIVE_DESCR}" "${_TSFILE}")
+    _cgv_try_parse_git_describe("${_ARCHIVE_DESCR}" "${_BRANCH}" "${_TSFILE}")
     if(${CGV_CACHE_VAR})
       # Successfully parsed description
       return()
@@ -275,8 +287,18 @@ function(_cgv_try_git_describe)
     return()
   endif()
 
+  # Get git branch: may fail if detached
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" "symbolic-ref" "--short" "HEAD"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    ERROR_VARIABLE _GIT_ERR
+    OUTPUT_VARIABLE _BRANCH_STRING
+    RESULT_VARIABLE _GIT_RESULT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
   _cgv_git_path(_TSFILE)
-  _cgv_try_parse_git_describe("${_VERSION_STRING}" "${_TSFILE}")
+  _cgv_try_parse_git_describe("${_VERSION_STRING}" "${_BRANCH_STRING}" "${_TSFILE}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
