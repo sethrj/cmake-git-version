@@ -183,7 +183,7 @@ function(_cgv_try_git_describe)
   # Load git description
   execute_process(
     COMMAND "${GIT_EXECUTABLE}" "describe" "--tags" "--match" "v*"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     ERROR_VARIABLE _GIT_ERR
     OUTPUT_VARIABLE _VERSION_STRING
     RESULT_VARIABLE _GIT_RESULT
@@ -214,7 +214,7 @@ function(_cgv_try_git_hash)
   # Fall back to just getting the hash
   execute_process(
     COMMAND "${GIT_EXECUTABLE}" "log" "-1" "--format=%h" "HEAD"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     OUTPUT_VARIABLE _VERSION_HASH
     RESULT_VARIABLE _GIT_RESULT
     OUTPUT_STRIP_TRAILING_WHITESPACE
