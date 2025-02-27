@@ -61,11 +61,19 @@ CgvFindVersion
 
     geant4-([0-9-]+[0-9]+)(-[a-z]+-[0-9]+)?`
 
+
+  Finally, this script records the time stamp of the file used to generate the
+  metadata, and it will re-run cmake if that file changes, and re-run the
+  associated git commands only if the file changes.
+
   .. note:: In order for this script to work properly with archived git
     repositories (generated with ``git-archive`` or GitHub's release tarball
     feature), it's necessary to add to your ``.gitattributes`` file::
 
       CgvFindVersion.cmake export-subst
+
+    The install script included alongside this file (in the original
+    repository) sets this property.
 
 #]=======================================================================]
 
@@ -367,6 +375,7 @@ function(cgv_find_version)
   list(GET _CACHED_VERSION 0 _VERSION_STRING)
   list(GET _CACHED_VERSION 1 _VERSION_STRING_SUFFIX)
   list(GET _CACHED_VERSION 2 _VERSION_HASH)
+  list(GET _CACHED_VERSION 3 _TSFILE)
 
   if(NOT _VERSION_STRING)
     set(_VERSION_STRING "0.0.0")
@@ -376,6 +385,11 @@ function(cgv_find_version)
     set(_FULL_VERSION_STRING "${_VERSION_STRING}${_VERSION_STRING_SUFFIX}+${_VERSION_HASH}")
   else()
     set(_FULL_VERSION_STRING "${_VERSION_STRING}${_VERSION_STRING_SUFFIX}")
+  endif()
+
+  if(_TSFILE)
+    # Re-run cmake if the timestamp file changes
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_TSFILE}")
   endif()
 
   # Set version number and descriptive version in parent scope
