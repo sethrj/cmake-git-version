@@ -74,8 +74,19 @@ if(CMAKE_SCRIPT_MODE_FILE)
 endif()
 
 #-----------------------------------------------------------------------------#
+# Get a reproducible timestamp
+macro(_cgv_timestamp tsfile tsvar)
+  if(EXISTS "${tsfile}")
+    file(TIMESTAMP "${tsfile}" ${tsvar} "%Y%m%d.%H%M%S" UTC)
+  else()
+    set(${tsvar} "")
+  endif()
+endmacro()
 
-function(_cgv_store_version vstring vsuffix vhash)
+#-----------------------------------------------------------------------------#
+# Save the version with a timestamp to a cache variable
+
+function(_cgv_store_version vstring vsuffix vhash tsfile)
   if(NOT vstring)
     message(WARNING "The version metadata for ${CGV_PROJECT} could not "
       "be determined: installed version number may be incorrect")
@@ -85,19 +96,50 @@ function(_cgv_store_version vstring vsuffix vhash)
   # Remove trailing periods
   string(REGEX REPLACE "\\.+$" "" vstring "${vstring}")
 
+  # Get timestamp
+  _cgv_timestamp("${tsfile}" _vtimestamp)
   # Set up cached data list
-  set(_CACHED_VERSION "${vstring}" "${vsuffix}" "${vhash}")
+  set(_CACHED_VERSION
+    "${vstring}" "${vsuffix}" "${vhash}" "${tsfile}" "${_vtimestamp}"
+  )
   # Note: extra 'unset' is necessary if using CMake presets with
   # ${CGV_PROJECT}_GIT_DESCRIBE="", even with INTERNAL/FORCE
   unset("${CGV_CACHE_VAR}" CACHE)
   set("${CGV_CACHE_VAR}" "${_CACHED_VERSION}" CACHE INTERNAL
     "Version string and hash for ${CGV_PROJECT}")
+  message(VERBOSE "Set ${CGV_CACHE_VAR}=${vstring};${vsuffix};${vhash} from ${tsfile}")
+endfunction()
+
+#-----------------------------------------------------------------------------#
+# Get the path to the git head used to describe the current repostiory
+function(_cgv_git_path resultvar)
+  if(GIT_EXECUTABLE)
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" "rev-parse" "--git-path" "HEAD"
+      WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+      ERROR_VARIABLE _GIT_ERR
+      OUTPUT_VARIABLE _TSFILE
+      RESULT_VARIABLE _GIT_RESULT
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  else()
+    set(_GIT_RESULT 1)
+    set(_GIT_ERR "GIT_EXECUTABLE is not defined")
+  endif()
+  if(_GIT_RESULT)
+    message(AUTHOR_WARNING "Failed to get path to git head: ${_GIT_ERR}")
+    set(_TSFILE)
+  else()
+    get_filename_component(_TSFILE "${_TSFILE}" ABSOLUTE)
+  endif()
+
+  set(${resultvar} "${_TSFILE}" PARENT_SCOPE)
 endfunction()
 
 #-----------------------------------------------------------------------------#
 # Process description tag: e.g. v0.4.0-2-gc4af497 or v0.4.0 or v2.0.0-rc.2
 
-function(_cgv_try_parse_git_describe version_string)
+function(_cgv_try_parse_git_describe version_string tsfile)
   # Regex groups:
   #  1: primary version (1.2.3)
   #  2: pre-release: dev/alpha/rc annotation (-rc.1)
@@ -115,12 +157,12 @@ function(_cgv_try_parse_git_describe version_string)
 
   if(NOT CMAKE_MATCH_3)
     # This is a tagged release!
-    _cgv_store_version("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}" "")
+    _cgv_store_version("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}" "" "${tsfile}")
     return()
   endif()
 
   if(CMAKE_MATCH_2)
-    # After a pre-release, e.g. -rc.1
+    # After a pre-release, e.g. -rc.1, for SemVer compatibility
     set(_prerelease "${CMAKE_MATCH_2}.${CMAKE_MATCH_4}")
   else()
     # After a release, e.g. -123
@@ -132,6 +174,7 @@ function(_cgv_try_parse_git_describe version_string)
     "${CMAKE_MATCH_1}" # 1.2.3
     "${_prerelease}" # -rc.2.3, -beta.1, -123
     "${CMAKE_MATCH_5}" # abcdef
+    "${tsfile}" # timestamp file
   )
 endfunction()
 
@@ -148,8 +191,10 @@ function(_cgv_try_archive_md)
     return()
   endif()
 
+  set(_TSFILE "${CMAKE_CURRENT_LIST_FILE}")
+
   if(_ARCHIVE_DESCR)
-    _cgv_try_parse_git_describe("${_ARCHIVE_DESCR}")
+    _cgv_try_parse_git_describe("${_ARCHIVE_DESCR}" "${_TSFILE}")
     if(${CGV_CACHE_VAR})
       # Successfully parsed description
       return()
@@ -158,27 +203,32 @@ function(_cgv_try_archive_md)
 
   string(REGEX MATCH "tag: *${CGV_TAG_REGEX}" _MATCH "${_ARCHIVE_TAG}")
   if(_MATCH)
-    _cgv_store_version("${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}" "")
-    return()
+    set(_VERSION "${CMAKE_MATCH_1}")
+    set(_SUFFIX "${CMAKE_MATCH_2}")
+    set(_HASH)
+  else()
+    message(AUTHOR_WARNING
+      "Could not match a version tag for "
+      "git description '${_ARCHIVE_TAG}': perhaps this archive was not "
+      "exported from a tagged commit?"
+    )
+    string(REGEX MATCH " *([0-9a-f]+)" _MATCH "${_ARCHIVE_HASH}")
+    if(NOT _MATCH)
+      # Could not even find a git hash
+      return()
+    endif()
+
+    # Found a hash but no version
+    set(_VERSION)
+    set(_SUFFIX)
+    set(_HASH "${CMAKE_MATCH_1}")
   endif()
 
-  message(AUTHOR_WARNING
-    "Could not match a version tag for "
-    "git description '${_ARCHIVE_TAG}': perhaps this archive was not "
-    "exported from a tagged commit?"
-  )
-  string(REGEX MATCH " *([0-9a-f]+)" _MATCH "${_ARCHIVE_HASH}")
-  if(NOT _MATCH)
-    # Could not even find a git hash
-    return()
-  endif()
-
-  # Found a hash but no version
-  _cgv_store_version("" "" "${CMAKE_MATCH_1}")
+  _cgv_store_version("${_VERSION}" "${_SUFFIX}" "${_HASH}" "${_TSFILE}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
-
+# Try git's 'describe' function
 function(_cgv_try_git_describe)
   # First time calling "git describe"
   if(NOT Git_FOUND)
@@ -217,7 +267,8 @@ function(_cgv_try_git_describe)
     return()
   endif()
 
-  _cgv_try_parse_git_describe("${_VERSION_STRING}")
+  _cgv_git_path(_TSFILE)
+  _cgv_try_parse_git_describe("${_VERSION_STRING}" "${_TSFILE}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
@@ -239,13 +290,35 @@ function(_cgv_try_git_hash)
       "${_GIT_ERR}")
     return()
   endif()
-  _cgv_store_version("" "" "${_VERSION_HASH}")
+
+  _cgv_git_path(_TSFILE)
+  _cgv_store_version("" "" "${_VERSION_HASH}" "${_TSFILE}")
 endfunction()
 
 function(_cgv_try_all)
   if(${CGV_CACHE_VAR})
-    # Previous configure already set the variable
-    return()
+    # Previous configure already set the variable: check the timestamp
+    list(LENGTH ${CGV_CACHE_VAR} _len)
+    if(_len EQUAL 5)
+      list(GET ${CGV_CACHE_VAR} 3 _tsfile)
+      list(GET ${CGV_CACHE_VAR} 4 _timestamp)
+    else()
+      message(VERBOSE "Old cache variable ${CGV_CACHE_VAR}: length=${_len}")
+      set(_tsfile)
+    endif()
+    if(_tsfile)
+      _cgv_timestamp("${_tsfile}" _curtimestamp)
+      if(_timestamp STREQUAL _curtimestamp)
+        message(VERBOSE "Equal time stamp from ${_tsfile}: ${_timestamp}")
+        # Time stamp is equal; version doesn't need to be updated
+        return()
+      else()
+        message(VERBOSE
+          "Stale timestamp from ${_tsfile}: ${_timestamp} != ${_curtimestamp}"
+        )
+      endif()
+    endif()
+    unset(${CGV_CACHE_VAR} CACHE)
   endif()
 
   _cgv_try_archive_md()
