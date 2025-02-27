@@ -56,7 +56,10 @@ CgvFindVersion
     v([0-9.]+)(-[a-z]+[0-9.]*)?
 
   but you can override the regex by setting the ``CGV_TAG_REGEX`` variable
-  before calling ``cgv_find_version``.
+  before calling ``cgv_find_version``. For example, Geant4 tags such as
+  `geant4-11-02-ref-09` can be matched with::
+
+    geant4-([0-9-]+[0-9]+)(-[a-z]+-[0-9]+)?`
 
   .. note:: In order for this script to work properly with archived git
     repositories (generated with ``git-archive`` or GitHub's release tarball
@@ -72,12 +75,18 @@ endif()
 
 #-----------------------------------------------------------------------------#
 
-function(_cgv_store_version string suffix hash)
-  if(NOT string)
+function(_cgv_store_version vstring vsuffix vhash)
+  if(NOT vstring)
     message(WARNING "The version metadata for ${CGV_PROJECT} could not "
       "be determined: installed version number may be incorrect")
   endif()
-  set(_CACHED_VERSION "${string}" "${suffix}" "${hash}")
+  # Replace 11-03 with 11.3
+  string(REGEX REPLACE "-+0*" "." vstring "${vstring}")
+  # Remove trailing periods
+  string(REGEX REPLACE "\\.+$" "" vstring "${vstring}")
+
+  # Set up cached data list
+  set(_CACHED_VERSION "${vstring}" "${vsuffix}" "${vhash}")
   # Note: extra 'unset' is necessary if using CMake presets with
   # ${CGV_PROJECT}_GIT_DESCRIBE="", even with INTERNAL/FORCE
   unset("${CGV_CACHE_VAR}" CACHE)
@@ -180,9 +189,15 @@ function(_cgv_try_git_describe)
     endif()
   endif()
 
+  if(CGV_TAG_REGEX MATCHES "^\\^?([a-z-]+)")
+    set(_match "--match" "${CMAKE_MATCH_1}*")
+  else()
+    set(_match)
+  endif()
+
   # Load git description
   execute_process(
-    COMMAND "${GIT_EXECUTABLE}" "describe" "--tags" "--match" "v*"
+    COMMAND "${GIT_EXECUTABLE}" "describe" "--tags" ${_match}
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     ERROR_VARIABLE _GIT_ERR
     OUTPUT_VARIABLE _VERSION_STRING
@@ -190,7 +205,7 @@ function(_cgv_try_git_describe)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   if(_GIT_RESULT)
-    message(AUTHOR_WARNING "No git tags in ${CGV_PROJECT} matched 'v*': ${_GIT_ERR}")
+    message(AUTHOR_WARNING "No suitable git tags found': ${_GIT_ERR}")
     return()
   endif()
   if(_GIT_ERR)
