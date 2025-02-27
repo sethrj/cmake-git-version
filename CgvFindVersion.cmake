@@ -98,7 +98,7 @@ function(_cgv_try_parse_git_describe version_string)
   set(_DESCR_REGEX "^${CGV_TAG_REGEX}(-([0-9]+)-g([0-9a-f]+))?")
   string(REGEX MATCH "${_DESCR_REGEX}" _MATCH "${version_string}")
   if(NOT _MATCH)
-    message(WARNING
+    message(AUTHOR_WARNING
       "Failed to parse description '${version_string}' with regex '${_DESCR_REGEX}'"
     )
     return()
@@ -153,7 +153,7 @@ function(_cgv_try_archive_md)
     return()
   endif()
 
-  message(WARNING
+  message(AUTHOR_WARNING
     "Could not match a version tag for "
     "git description '${_ARCHIVE_TAG}': perhaps this archive was not "
     "exported from a tagged commit?"
@@ -190,10 +190,14 @@ function(_cgv_try_git_describe)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   if(_GIT_RESULT)
-    message(WARNING "No git tags in ${CGV_PROJECT} matched 'v*': ${_GIT_ERR}")
+    message(AUTHOR_WARNING "No git tags in ${CGV_PROJECT} matched 'v*': ${_GIT_ERR}")
     return()
-  elseif(NOT _VERSION_STRING)
-    message(WARNING "Failed to get ${CGV_PROJECT} version from git: "
+  endif()
+  if(_GIT_ERR)
+    message(AUTHOR_WARNING "git describe warned: ${_GIT_ERR}")
+  endif()
+  if(NOT _VERSION_STRING)
+    message(AUTHOR_WARNING "Failed to get ${CGV_PROJECT} version from git: "
       "git describe returned an empty string")
     return()
   endif()
@@ -216,7 +220,7 @@ function(_cgv_try_git_hash)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   if(_GIT_RESULT)
-    message(WARNING "Failed to get current commit hash from git: "
+    message(AUTHOR_WARNING "Failed to get current commit hash from git: "
       "${_GIT_ERR}")
     return()
   endif()
