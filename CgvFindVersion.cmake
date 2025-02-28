@@ -301,7 +301,7 @@ function(_cgv_try_git_describe)
     return()
   endif()
 
-  # Get git branch: may fail if detached, leading to empty output, which # is
+  # Get git branch: may fail if detached, leading to empty output, which is
   # the desired behavior
   _cgv_git_call_output(_BRANCH_STRING "symbolic-ref" "--short" "HEAD")
 
