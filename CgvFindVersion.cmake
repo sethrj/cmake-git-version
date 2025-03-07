@@ -104,7 +104,7 @@ endmacro()
 #-----------------------------------------------------------------------------#
 # Execute a command, logging verbosely, saving output
 macro(_cgv_git_call_output output_var)
-  message(VERBOSE "Executing ${GIT_EXECUTABLE} from ${CGV_SOURCE_DIR}: ${ARGV}")
+  message(VERBOSE "Executing ${GIT_EXECUTABLE} from ${CGV_SOURCE_DIR}: ${ARGN}")
   execute_process(
     COMMAND "${GIT_EXECUTABLE}" ${ARGN}
     WORKING_DIRECTORY "${CGV_SOURCE_DIR}"
