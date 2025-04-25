@@ -1,5 +1,6 @@
 #------------------------------- -*- cmake -*- -------------------------------#
 # SPDX-License-Identifier: Apache-2.0
+# SPDX-PackageName: "CGV: CMake Git Version"
 #
 # https://github.com/sethrj/cmake-git-version
 #
