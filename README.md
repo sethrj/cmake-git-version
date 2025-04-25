@@ -8,6 +8,9 @@ version metadata is always up-to-date with Git version data, whether your
 repository is cloned or exported as a source tarball via the GitHub release
 mechanism.
 
+The targeted version format is [Semantic Versioning](https://semver.org), but
+CgvFindVersion provides hooks to support other formats.
+
 [1]: https://github.com/python-versioneer/python-versioneer
 
 ## Installation
@@ -50,3 +53,15 @@ You can test the version information by running CMake from the command line:
 ```console
 cmake -P cmake/CgvFindVersion.cmake
 ```
+and you can integrate your code's version into shell scripts or other workflows
+with
+```
+cmake -DONLY=VERSION -P CgvFindVersion.cmake
+```
+
+## Codes that use CGV
+
+- [Celeritas](https://github.com/celeritas-project/celeritas)
+- [G4VG](https://github.com/celeritas-project/g4vg)
+- [Flibcpp](https://github.com/swig-fortran/flibcpp)
+- [VecGeom](https://gitlab.cern.ch/VecGeom/VecGeom)
