@@ -122,7 +122,11 @@ endmacro()
 function(_cgv_store_version vstring vsuffix vhash tsfile)
   if(NOT vstring)
     message(WARNING "The version metadata for ${CGV_PROJECT} could not "
-      "be determined: installed version number may be incorrect")
+      "be determined: installed version number may be incorrect. Try "
+      "downloading an official release tarball, using `git archive`, "
+      "using `git clone` without `--shallow` nor deleting `.git`, or "
+      "manually specifying a known version by configuring with "
+      "`-D${CGV_CACHE_VAR}=1.2.3")
   endif()
   # Replace 11-03 with 11.3
   string(REGEX REPLACE "-+0*" "." vstring "${vstring}")
@@ -331,13 +335,20 @@ endfunction()
 function(_cgv_try_all)
   if(${CGV_CACHE_VAR})
     # Previous configure already set the variable: check the timestamp
+    set(_tsfile)
     list(LENGTH ${CGV_CACHE_VAR} _len)
-    if(_len EQUAL 5)
+    if(_len EQUAL 1)
+      # Version number specified by user
+      message(AUTHOR_WARNING
+        "Using manually input git version ${${CGV_CACHE_VAR}}"
+      )
+      set(${CGV_CACHE_VAR} "${${CGV_CACHE_VAR}}" "" "" "" PARENT_SCOPE)
+      return()
+    elseif(_len EQUAL 5)
       list(GET ${CGV_CACHE_VAR} 3 _tsfile)
       list(GET ${CGV_CACHE_VAR} 4 _timestamp)
     else()
-      message(VERBOSE "Old cache variable ${CGV_CACHE_VAR}: length=${_len}")
-      set(_tsfile)
+      message(VERBOSE "Invalid cache variable ${CGV_CACHE_VAR}: length=${_len}")
     endif()
     if(_tsfile)
       _cgv_timestamp("${_tsfile}" _curtimestamp)
