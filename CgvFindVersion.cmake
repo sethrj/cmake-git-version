@@ -110,8 +110,8 @@ macro(_cgv_git_call_output output_var)
     COMMAND "${GIT_EXECUTABLE}" ${ARGN}
     WORKING_DIRECTORY "${CGV_SOURCE_DIR}"
     OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_VARIABLE GIT_ERR
-    RESULT_VARIABLE GIT_RESULT
+    ERROR_VARIABLE ${output_var}_ERR
+    RESULT_VARIABLE ${output_var}_RESULT
     OUTPUT_VARIABLE ${output_var}
   )
 endmacro()
@@ -150,16 +150,11 @@ function(_cgv_store_version vstring vsuffix vhash tsfile)
 endfunction()
 
 #-----------------------------------------------------------------------------#
-# Get the path to the git head used to describe the current repostiory
-function(_cgv_git_path resultvar)
-  if(GIT_EXECUTABLE)
-    _cgv_git_call_output(_TSFILE "rev-parse" "--git-path" "HEAD")
-  else()
-    set(GIT_RESULT 1)
-    set(GIT_ERR "GIT_EXECUTABLE is not defined")
-  endif()
-  if(GIT_RESULT)
-    message(AUTHOR_WARNING "Failed to get path to git head: ${GIT_ERR}")
+# Get the path to the git head used to describe the current repository
+function(_cgv_git_path_head resultvar)
+  _cgv_git_call_output(_TSFILE "rev-parse" "--git-path" "HEAD")
+  if(_TSFILE_RESULT)
+    message(AUTHOR_WARNING "Failed to get path to git head: ${_TSFILE_ERR}")
     set(_TSFILE)
   else()
     get_filename_component(_TSFILE "${_TSFILE}" ABSOLUTE BASE_DIR
@@ -293,12 +288,12 @@ function(_cgv_try_git_describe)
 
   # Load git description
   _cgv_git_call_output(_VERSION_STRING "describe" "--tags" ${_match})
-  if(GIT_RESULT)
-    message(AUTHOR_WARNING "No suitable git tags found': ${GIT_ERR}")
+  if(_VERSION_STRING_RESULT)
+    message(AUTHOR_WARNING "No suitable git tags found': ${_VERSION_STRING_ERR}")
     return()
   endif()
-  if(GIT_ERR)
-    message(AUTHOR_WARNING "git describe warned: ${GIT_ERR}")
+  if(_VERSION_STRING_ERR)
+    message(AUTHOR_WARNING "git describe warned: ${_VERSION_STRING_ERR}")
   endif()
   if(NOT _VERSION_STRING)
     message(AUTHOR_WARNING "Failed to get ${CGV_PROJECT} version from git: "
