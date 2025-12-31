@@ -30,6 +30,8 @@ Typically you will want to use the exported version metadata from CGV to inform
 CMake of your project's version:
 
 ```cmake
+# OPTIONAL: provide fallback version for the case of shallow git clones
+# set(MyProject_VERSION 1.2.3)
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/CgvFindVersion.cmake")
 cgv_find_version(MyProject)
 
@@ -58,6 +60,7 @@ with
 ```
 cmake -DONLY=VERSION -P CgvFindVersion.cmake
 ```
+which writes the parsed version to stderr.
 
 ## Codes that use CGV
 

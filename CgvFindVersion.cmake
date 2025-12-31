@@ -66,6 +66,11 @@ CgvFindVersion
   metadata, and it will re-run cmake if that file changes, and re-run the
   associated git commands only if the file changes.
 
+  .. note:: Since there are cases where no metadata is available (e.g., a
+    shallow clone), you can provide a *fallback* version by specifying
+    ``${PROJECT}_VERSION`` and (optionally) ``${PROJECT}_VERSION_STRING`` at the
+    top level of the cmake or (if using a package manager) via the command line.
+
   .. note:: In order for this script to work properly with archived git
     repositories (generated with ``git-archive`` or GitHub's release tarball
     feature), it's necessary to add to your ``.gitattributes`` file::
@@ -87,7 +92,7 @@ To print only the version string (to stderr), and from a custom directory::
 #]=======================================================================]
 
 if(CMAKE_SCRIPT_MODE_FILE)
-  cmake_minimum_required(VERSION 3.8...3.30)
+  cmake_minimum_required(VERSION 3.8...4.1)
 endif()
 
 set(CGV_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}")
@@ -126,7 +131,7 @@ function(_cgv_store_version vstring vsuffix vhash tsfile)
       "downloading an official release tarball, using `git archive`, "
       "using `git clone` without `--shallow` nor deleting `.git`, or "
       "manually specifying a known version by configuring with "
-      "`-D${CGV_CACHE_VAR}=1.2.3")
+      "`-D${CGV_PROJECT}_VERSION=1.2.3")
   endif()
   # Replace 11-03 with 11.3
   string(REGEX REPLACE "-+0*" "." vstring "${vstring}")
@@ -271,14 +276,11 @@ endfunction()
 #-----------------------------------------------------------------------------#
 # Try git's 'describe' function
 function(_cgv_try_git_describe)
-  # First time calling "git describe"
   if(NOT Git_FOUND)
-    find_package(Git QUIET)
-    if(NOT Git_FOUND)
-      message(WARNING "Could not find Git, needed to find the version tag")
-      return()
-    endif()
+    return()
   endif()
+
+  _cgv_git_call_output(_VERSION_STRING "describe" "--tags" ${_match})
 
   if(CGV_TAG_REGEX MATCHES "^\\^?([a-z-]+)")
     set(_match "--match" "${CMAKE_MATCH_1}*")
@@ -305,16 +307,17 @@ function(_cgv_try_git_describe)
   # the desired behavior
   _cgv_git_call_output(_BRANCH_STRING "symbolic-ref" "--short" "HEAD")
 
-  _cgv_git_path(_TSFILE)
+  _cgv_git_path_head(_TSFILE)
   _cgv_try_parse_git_describe("${_VERSION_STRING}" "${_BRANCH_STRING}" "${_TSFILE}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
 
 function(_cgv_try_git_hash)
-  if(NOT GIT_EXECUTABLE)
+  if(NOT Git_FOUND)
     return()
   endif()
+
   # Fall back to just getting the hash
   _cgv_git_call_output(_VERSION_HASH "log" "-1" "--format=%h" "HEAD")
   if(_VERSION_HASH_RESULT)
@@ -323,27 +326,38 @@ function(_cgv_try_git_hash)
     return()
   endif()
 
-  _cgv_git_path(_TSFILE)
+  _cgv_git_path_head(_TSFILE)
   _cgv_store_version("" "" "${_VERSION_HASH}" "${_TSFILE}")
 endfunction()
+
+#-----------------------------------------------------------------------------#
+
+function(_cgv_try_cmake)
+  set(_ver "${${CGV_PROJECT}_VERSION}")
+  if(NOT _ver)
+    message(AUTHOR_WARNING
+      "No fallback version specified from ${CGV_PROJECT}_VERSION"
+    )
+    return()
+  endif()
+
+  string(REPLACE "${_ver}" "" vstring "${${CGV_PROJECT}_VERSION_STRING}")
+
+  _cgv_store_version("${${CGV_PROJECT}_VERSION}" "" "" "${CMAKE_PARENT_LIST_FILE}")
+endfunction()
+
+#-----------------------------------------------------------------------------#
 
 function(_cgv_try_all)
   if(${CGV_CACHE_VAR})
     # Previous configure already set the variable: check the timestamp
-    set(_tsfile)
     list(LENGTH ${CGV_CACHE_VAR} _len)
-    if(_len EQUAL 1)
-      # Version number specified by user
-      message(AUTHOR_WARNING
-        "Using manually input git version ${${CGV_CACHE_VAR}}"
-      )
-      set(${CGV_CACHE_VAR} "${${CGV_CACHE_VAR}}" "" "" "" PARENT_SCOPE)
-      return()
-    elseif(_len EQUAL 5)
+    if(_len EQUAL 5)
       list(GET ${CGV_CACHE_VAR} 3 _tsfile)
       list(GET ${CGV_CACHE_VAR} 4 _timestamp)
     else()
       message(VERBOSE "Invalid cache variable ${CGV_CACHE_VAR}: length=${_len}")
+      set(_tsfile)
     endif()
     if(_tsfile)
       _cgv_timestamp("${_tsfile}" _curtimestamp)
@@ -365,6 +379,22 @@ function(_cgv_try_all)
     return()
   endif()
 
+  # Now check for git
+  if(NOT Git_FOUND)
+    find_package(Git QUIET)
+    if(NOT Git_FOUND)
+      message(WARNING "Could not find Git (needed to find the version tag)")
+    endif()
+  endif()
+  if(Git_FOUND)
+    _cgv_git_call_output(_GIT_DIR "rev-parse" "--git-dir")
+    if(_GIT_DIR_RESULT)
+      message(VERBOSE "git: ${_GIT_DIR_ERR}")
+      message(WARNING "Not a git repository (needed to find the version tag)")
+      set(Git_FOUND FALSE)
+    endif()
+  endif()
+
   _cgv_try_git_describe()
   if(${CGV_CACHE_VAR})
     return()
@@ -375,8 +405,13 @@ function(_cgv_try_all)
     return()
   endif()
 
+  _cgv_try_cmake()
+  if(${CGV_CACHE_VAR})
+    return()
+  endif()
+
   # Fallback: no metadata detected
-  set(${CGV_CACHE_VAR} "" "-unknown" "")
+  _cgv_store_version("" "" "unknown" "none")
 endfunction()
 
 #-----------------------------------------------------------------------------#
