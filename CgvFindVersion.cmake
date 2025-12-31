@@ -341,9 +341,9 @@ function(_cgv_try_cmake)
     return()
   endif()
 
-  string(REPLACE "${_ver}" "" vstring "${${CGV_PROJECT}_VERSION_STRING}")
+  string(REPLACE "${_ver}" "" _suffix "${${CGV_PROJECT}_VERSION_STRING}")
 
-  _cgv_store_version("${${CGV_PROJECT}_VERSION}" "" "" "${CMAKE_PARENT_LIST_FILE}")
+  _cgv_store_version("${${CGV_PROJECT}_VERSION}" "${_suffix}" "" "${CMAKE_PARENT_LIST_FILE}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
