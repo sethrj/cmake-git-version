@@ -126,12 +126,22 @@ endmacro()
 
 function(_cgv_store_version vstring vsuffix vhash tsfile)
   if(NOT vstring)
+    set(vstring "${${CGV_PROJECT}_VERSION}")
+    if(vstring)
+      string(REPLACE "${vstring}" "" vsuffix "${${CGV_PROJECT}_VERSION_STRING}")
+      message(VERBOSE "Using fallback version and string: "
+        "${CGV_PROJECT}_VERSION=${vstring}, "
+        "${CGV_PROJECT}_VERSION_STRING=${${CGV_PROJECT}_VERSION_STRING}"
+      )
+    endif()
+  endif()
+  if(NOT vstring)
     message(WARNING "The version metadata for ${CGV_PROJECT} could not "
       "be determined: installed version number may be incorrect. Try "
       "downloading an official release tarball, using `git archive`, "
       "using `git clone` without `--shallow` nor deleting `.git`, or "
       "manually specifying a known version by configuring with "
-      "`-D${CGV_PROJECT}_VERSION=1.2.3")
+      "`-D${CGV_PROJECT}_VERSION=1.2.3`")
   endif()
   # Replace 11-03 with 11.3
   string(REGEX REPLACE "-+0*" "." vstring "${vstring}")
@@ -197,23 +207,23 @@ function(_cgv_try_parse_git_describe version_string branch_string tsfile)
 
   if(CMAKE_MATCH_2)
     # After a pre-release, e.g. -rc.1, for SemVer compatibility
-    set(_prerelease "${CMAKE_MATCH_2}.${CMAKE_MATCH_4}")
+    set(_suffix "${CMAKE_MATCH_2}.${CMAKE_MATCH_4}")
   else()
     # After a release, e.g. -123
-    set(_prerelease "-${CMAKE_MATCH_4}")
+    set(_suffix "-${CMAKE_MATCH_4}")
   endif()
 
   if(branch_string)
-    set(_suffix "${branch_string}.${CMAKE_MATCH_5}")
+    set(_hash "${branch_string}.${CMAKE_MATCH_5}")
   else()
-    set(_suffix "${CMAKE_MATCH_5}")
+    set(_hash "${CMAKE_MATCH_5}")
   endif()
 
   # Qualify the version number with the distance-to-tag and hash
   _cgv_store_version(
     "${CMAKE_MATCH_1}" # 1.2.3
-    "${_prerelease}" # -rc.2.3, -beta.1, -123
-    "${_suffix}" # abcdef
+    "${_suffix}" # -rc.2.3, -beta.1, -123
+    "${_hash}" # abcdef
     "${tsfile}" # timestamp file
   )
 endfunction()
@@ -291,7 +301,7 @@ function(_cgv_try_git_describe)
   # Load git description
   _cgv_git_call_output(_VERSION_STRING "describe" "--tags" ${_match})
   if(_VERSION_STRING_RESULT)
-    message(AUTHOR_WARNING "No suitable git tags found': ${_VERSION_STRING_ERR}")
+    message(AUTHOR_WARNING "No git tags match '${CGV_TAG_REGEX}': ${_VERSION_STRING_ERR}")
     return()
   endif()
   if(_VERSION_STRING_ERR)
@@ -333,17 +343,13 @@ endfunction()
 #-----------------------------------------------------------------------------#
 
 function(_cgv_try_cmake)
-  set(_ver "${${CGV_PROJECT}_VERSION}")
-  if(NOT _ver)
+  if(NOT DEFINED "${${CGV_PROJECT}_VERSION}")
     message(AUTHOR_WARNING
-      "No fallback version specified from ${CGV_PROJECT}_VERSION"
-    )
+      "No fallback version specified from ${CGV_PROJECT}_VERSION")
     return()
   endif()
 
-  string(REPLACE "${_ver}" "" _suffix "${${CGV_PROJECT}_VERSION_STRING}")
-
-  _cgv_store_version("${${CGV_PROJECT}_VERSION}" "${_suffix}" "" "${CMAKE_PARENT_LIST_FILE}")
+  _cgv_store_version("" "" "" "${CMAKE_PARENT_LIST_FILE}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
