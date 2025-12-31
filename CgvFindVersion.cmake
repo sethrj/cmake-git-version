@@ -147,7 +147,7 @@ function(_cgv_store_version vstring vsuffix vhash tsfile)
     "${vstring}" "${vsuffix}" "${vhash}" "${tsfile}" "${_vtimestamp}"
   )
   # Note: extra 'unset' is necessary if using CMake presets with
-  # ${CGV_PROJECT}_GIT_DESCRIBE="", even with INTERNAL/FORCE
+  # ${CGV_PROJECT}_CGV_CACHE="", even with INTERNAL/FORCE
   unset("${CGV_CACHE_VAR}" CACHE)
   set("${CGV_CACHE_VAR}" "${_CACHED_VERSION}" CACHE INTERNAL
     "Version string and hash for ${CGV_PROJECT}")
@@ -431,7 +431,7 @@ function(cgv_find_version)
     set(CGV_TAG_REGEX "v([0-9.]+)(-[a-z]+[0-9.]*)?")
   endif()
 
-  set(CGV_CACHE_VAR "${CGV_PROJECT}_GIT_DESCRIBE")
+  set(CGV_CACHE_VAR "${CGV_PROJECT}_CGV_CACHE")
 
   # Try all possible ways of obtaining metadata
   _cgv_try_all()
@@ -469,15 +469,15 @@ if(CMAKE_SCRIPT_MODE_FILE)
   if(DEFINED SOURCE_DIR)
     set(CGV_SOURCE_DIR ${SOURCE_DIR})
   endif()
-  cgv_find_version(TEMP)
+  cgv_find_version(LOCAL)
   if(DEFINED ONLY)
     # Print only the given variable, presumably VERSION or VERSION_STRING
     # (will print to stderr)
-    set(VERSION "${TEMP_VERSION}")
-    set(VERSION_STRING "${TEMP_VERSION_STRING}")
+    set(VERSION "${LOCAL_VERSION}")
+    set(VERSION_STRING "${LOCAL_VERSION_STRING}")
     message("${${ONLY}}")
   else()
-    message("VERSION=\"${TEMP_VERSION}\"")
-    message("VERSION_STRING=\"${TEMP_VERSION_STRING}\"")
+    message("VERSION=\"${LOCAL_VERSION}\"")
+    message("VERSION_STRING=\"${LOCAL_VERSION_STRING}\"")
   endif()
 endif()
