@@ -126,11 +126,13 @@ endmacro()
 
 function(_cgv_store_version vstring vsuffix vhash tsfile)
   if(NOT vstring)
-    # Use fallback version 0.1.2
+    # Use fallback version, e.g., 0.1.2
     set(vstring "${${CGV_PROJECT}_VERSION}")
     if(vstring)
       # Look for and use version string "0.1.2-x+yz"
-      string(REPLACE "${vstring}" "" vsuffix "${${CGV_PROJECT}_VERSION_STRING}")
+      # (note that this keeps the full _VERSION_STRING as a suffix if the given
+      # base version is absent)
+      string(REGEX REPLACE "^${vstring}" "" vsuffix "${${CGV_PROJECT}_VERSION_STRING}")
       message(VERBOSE "CgvFindVersion: using fallback version and string: "
         "${CGV_PROJECT}_VERSION=${vstring}, "
         "${CGV_PROJECT}_VERSION_STRING=${${CGV_PROJECT}_VERSION_STRING}"
@@ -463,6 +465,18 @@ function(cgv_find_version)
   if(_TSFILE)
     # Re-run cmake if the timestamp file changes
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_TSFILE}")
+  endif()
+
+  # Check cmake fallbacks
+  if(DEFINED "${CGV_PROJECT}_VERSION"
+     AND NOT "${${CGV_PROJECT}_VERSION}" STREQUAL _VERSION_STRING)
+    message(VERBOSE "CgvFindVersion: overriding ${CGV_PROJECT}_VERSION=${${CGV_PROJECT}_VERSION} "
+    "with ${_VERSION_STRING}")
+  endif()
+  if(DEFINED "${CGV_PROJECT}_VERSION_STRING"
+     AND NOT "${${CGV_PROJECT}_VERSION_STRING}" STREQUAL _FULL_VERSION_STRING)
+    message(VERBOSE "CgvFindVersion: overriding ${CGV_PROJECT}_VERSION_STRING=${${CGV_PROJECT}_VERSION_STRING} "
+    "with ${_FULL_VERSION_STRING}")
   endif()
 
   # Set version number and descriptive version in parent scope
