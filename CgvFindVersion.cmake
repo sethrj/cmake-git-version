@@ -434,7 +434,7 @@ function(cgv_find_version)
     endif()
     set(CGV_PROJECT "${CMAKE_PROJECT_NAME}")
   endif()
-  message(VERBOSE "CgvFindVersion: beginning for project ${CGV_PROJECT}")
+  message(VERBOSE "CgvFindVersion: determining version for project ${CGV_PROJECT}")
 
   if(NOT CGV_TAG_REGEX)
     set(CGV_TAG_REGEX "v([0-9.]+)(-[a-z]+[0-9.]*)?")
