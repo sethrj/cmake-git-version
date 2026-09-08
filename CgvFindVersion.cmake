@@ -110,7 +110,7 @@ endmacro()
 #-----------------------------------------------------------------------------#
 # Execute a command, logging verbosely, saving output
 macro(_cgv_git_call_output output_var)
-  message(VERBOSE "Executing ${GIT_EXECUTABLE} from ${CGV_SOURCE_DIR}: ${ARGN}")
+  message(VERBOSE "CgvFindVersion: executing ${GIT_EXECUTABLE} from ${CGV_SOURCE_DIR}: ${ARGN}")
   execute_process(
     COMMAND "${GIT_EXECUTABLE}" ${ARGN}
     WORKING_DIRECTORY "${CGV_SOURCE_DIR}"
@@ -131,7 +131,7 @@ function(_cgv_store_version vstring vsuffix vhash tsfile)
     if(vstring)
       # Look for and use version string "0.1.2-x+yz"
       string(REPLACE "${vstring}" "" vsuffix "${${CGV_PROJECT}_VERSION_STRING}")
-      message(VERBOSE "Using fallback version and string: "
+      message(VERBOSE "CgvFindVersion: using fallback version and string: "
         "${CGV_PROJECT}_VERSION=${vstring}, "
         "${CGV_PROJECT}_VERSION_STRING=${${CGV_PROJECT}_VERSION_STRING}"
       )
@@ -163,7 +163,7 @@ function(_cgv_store_version vstring vsuffix vhash tsfile)
   unset("${CGV_CACHE_VAR}" CACHE)
   set("${CGV_CACHE_VAR}" "${_CACHED_VERSION}" CACHE INTERNAL
     "Version string and hash for ${CGV_PROJECT}")
-  message(VERBOSE "Set ${CGV_CACHE_VAR}=${vstring};${vsuffix};${vhash} from ${tsfile}")
+  message(VERBOSE "CgvFindVersion: set ${CGV_CACHE_VAR}=${vstring};${vsuffix};${vhash} from ${tsfile}")
 endfunction()
 
 #-----------------------------------------------------------------------------#
@@ -362,13 +362,13 @@ function(_cgv_try_all)
       list(GET ${CGV_CACHE_VAR} 3 _tsfile)
       list(GET ${CGV_CACHE_VAR} 4 _timestamp)
     else()
-      message(VERBOSE "Invalid cache variable ${CGV_CACHE_VAR}: length=${_len}")
+      message(VERBOSE "CgvFindVersion: invalid cache variable ${CGV_CACHE_VAR}: length=${_len}")
       set(_tsfile)
     endif()
     if(_tsfile)
       _cgv_timestamp("${_tsfile}" _curtimestamp)
       if(_timestamp AND _timestamp STREQUAL _curtimestamp)
-        message(VERBOSE "Equal time stamp from ${_tsfile}: ${_timestamp}")
+        message(VERBOSE "CgvFindVersion: equal time stamp from ${_tsfile}: ${_timestamp}")
         # Time stamp is equal; version doesn't need to be updated
         return()
       else()
@@ -432,6 +432,7 @@ function(cgv_find_version)
     endif()
     set(CGV_PROJECT "${CMAKE_PROJECT_NAME}")
   endif()
+  message(VERBOSE "CgvFindVersion: beginning for project ${CGV_PROJECT}")
 
   if(NOT CGV_TAG_REGEX)
     set(CGV_TAG_REGEX "v([0-9.]+)(-[a-z]+[0-9.]*)?")
