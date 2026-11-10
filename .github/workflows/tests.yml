@@ -7,15 +7,15 @@ on:
       - main
 
 jobs:
-  pytest:
-    runs-on: ubuntu-latest
+  all:
+    runs-on: ubuntu-26.04
     env:
-      TESTS_LOCKFILE: .github/tests.lock
+      LOCKFILE: .github/ubuntu-26.lock
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v9
         with:
           python-version-file: .github/python-version
       - name: Set up uv
@@ -24,26 +24,26 @@ jobs:
         id: install-lock
         continue-on-error: true
         run: |
-          if [[ ! -f "$TESTS_LOCKFILE" ]]; then
-            echo "Lockfile is missing: $TESTS_LOCKFILE"
+          if [[ ! -f "$LOCKFILE" ]]; then
+            echo "Lockfile is missing: $LOCKFILE"
             exit 1
           fi
           uv venv
-          uv pip sync --python .venv/bin/python "$TESTS_LOCKFILE"
+          uv pip sync --python .venv/bin/python "$LOCKFILE"
       - name: Generate lockfile
-        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.TESTS_LOCKFILE) == '' }}
-        run: uv pip compile tests/requirements.txt --output-file "$TESTS_LOCKFILE"
+        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.LOCKFILE) == '' }}
+        run: uv pip compile test/requirements.txt --output-file "$LOCKFILE"
       - name: Upload generated lockfile
-        if: ${{ always() && (steps.install-lock.outcome == 'failure' || hashFiles(env.TESTS_LOCKFILE) == '') }}
+        if: ${{ always() && (steps.install-lock.outcome == 'failure' || hashFiles(env.LOCKFILE) == '') }}
         uses: actions/upload-artifact@v4
         with:
-          name: tests-lock
-          path: ${{ env.TESTS_LOCKFILE }}
+          name: test-lock
+          path: ${{ env.LOCKFILE }}
           if-no-files-found: warn
       - name: Require lockfile update
-        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.TESTS_LOCKFILE) == '' }}
+        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.LOCKFILE) == '' }}
         run: |
-          echo "Download the tests-lock artifact and add it at $TESTS_LOCKFILE, then rerun CI."
+          echo "Download the test-lock artifact and add it at $LOCKFILE, then rerun CI."
           exit 1
-      - name: Run tests
-        run: uv run --python .venv/bin/python -m pytest -q tests
+      - name: Run test
+        run: uv run --python .venv/bin/python -m pytest -q test
