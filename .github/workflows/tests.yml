@@ -1,0 +1,21 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  all:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up test environment
+        uses: ./.github/actions/setup-test-environment
+        with:
+          lockfile: .github/ubuntu-26.lock
+          python-version-file: .github/python-version
+      - name: Run test
+        run: uv run --python .venv/bin/python -m pytest test

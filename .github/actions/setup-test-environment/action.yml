@@ -1,0 +1,43 @@
+name: Set up test environment
+description: Set up Python and install or generate the test dependency lockfile
+inputs:
+  lockfile:
+    description: Path to the test dependency lockfile
+    required: true
+  python-version-file:
+    description: Path to the Python version file
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version-file: ${{ inputs.python-version-file }}
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v10.3.3
+    - name: Install locked test dependencies
+      id: install-lock
+      shell: bash
+      env:
+        LOCKFILE: ${{ inputs.lockfile }}
+      run: |
+        if [[ ! -f "$LOCKFILE" ]]; then
+          echo "Lockfile is missing: $LOCKFILE"
+          exit 1
+        fi
+        uv venv
+        uv pip sync --python .venv/bin/python "$LOCKFILE"
+    - name: Generate lockfile
+      id: generate-lock
+      if: ${{ !cancelled() && steps.install-lock.outcome == 'failure' }}
+      shell: bash
+      env:
+        LOCKFILE: ${{ inputs.lockfile }}
+      run: uv pip compile test/requirements.txt --output-file "$LOCKFILE"
+    - name: Upload generated lockfile
+      if: ${{ !cancelled() && steps.generate-lock.outcome == 'success' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-lock
+        path: ${{ inputs.lockfile }}
