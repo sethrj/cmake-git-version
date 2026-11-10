@@ -1,0 +1,49 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    env:
+      TESTS_LOCKFILE: .github/tests.lock
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .github/python-version
+      - name: Set up uv
+        uses: astral-sh/setup-uv@10.3.3
+      - name: Install locked test dependencies
+        id: install-lock
+        continue-on-error: true
+        run: |
+          if [[ ! -f "$TESTS_LOCKFILE" ]]; then
+            echo "Lockfile is missing: $TESTS_LOCKFILE"
+            exit 1
+          fi
+          uv venv
+          uv pip sync --python .venv/bin/python "$TESTS_LOCKFILE"
+      - name: Generate lockfile
+        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.TESTS_LOCKFILE) == '' }}
+        run: uv pip compile tests/requirements.txt --output-file "$TESTS_LOCKFILE"
+      - name: Upload generated lockfile
+        if: ${{ always() && (steps.install-lock.outcome == 'failure' || hashFiles(env.TESTS_LOCKFILE) == '') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-lock
+          path: ${{ env.TESTS_LOCKFILE }}
+          if-no-files-found: warn
+      - name: Require lockfile update
+        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.TESTS_LOCKFILE) == '' }}
+        run: |
+          echo "Download the tests-lock artifact and add it at $TESTS_LOCKFILE, then rerun CI."
+          exit 1
+      - name: Run tests
+        run: uv run --python .venv/bin/python -m pytest -q tests
