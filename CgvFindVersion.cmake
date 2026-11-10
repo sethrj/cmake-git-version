@@ -387,6 +387,10 @@ function(_cgv_try_all)
     unset(${CGV_CACHE_VAR} CACHE)
   endif()
 
+  if(${CGV_PROJECT}_CGV_GIT_DESCRIBE)
+    _cgv_try_parse_git_describe("${${CGV_PROJECT}_CGV_GIT_DESCRIBE}" "" "FORCE")
+  endif()
+
   _cgv_try_archive_md()
   if(${CGV_CACHE_VAR})
     return()
