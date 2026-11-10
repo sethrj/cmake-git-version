@@ -3,8 +3,8 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: New release tag (for example, v1.2.3 or v1.2.3-rc.1)
+      version:
+        description: New release version (for example, 1.2.3 or 1.2.3-rc.1)
         required: true
         type: string
 
@@ -20,19 +20,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate release tag
+      - name: Validate release version
         env:
-          TAG: ${{ inputs.tag }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-z]+(0|[1-9][0-9]*)?(\.(0|[1-9][0-9]*))*)?$ ]]; then
-            echo "Tag must be compatible with this project's SemVer tags (vMAJOR.MINOR.PATCH with an optional lowercase prerelease)." >&2
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-z]+(0|[1-9][0-9]*)?(\.(0|[1-9][0-9]*))*)?$ ]]; then
+            echo "Version must be compatible with this project's SemVer tags (MAJOR.MINOR.PATCH with an optional lowercase prerelease)." >&2
             exit 1
           fi
 
-          version="${TAG#v}"
-          npx --yes semver@7 "$version" >/dev/null
+          npx --yes semver@7 "$VERSION" >/dev/null
+          TAG="v$VERSION"
 
           if git show-ref --verify --quiet "refs/tags/$TAG"; then
             echo "Tag already exists: $TAG" >&2
@@ -48,16 +48,17 @@ jobs:
           if ((${#versions[@]})); then
             latest="$(npx --yes semver@7 --include-prerelease "${versions[@]}" | tail -n 1)"
             if ! npx --yes semver@7 --include-prerelease --range=">$latest" "$version" >/dev/null; then
-              echo "Tag must be newer than the latest compatible release: v$latest" >&2
+              echo "Version must be newer than the latest compatible release: v$latest" >&2
               exit 1
             fi
           fi
 
       - name: Create local tag and source archive
         env:
-          TAG: ${{ inputs.tag }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+          TAG="v$VERSION"
           git tag "$TAG"
           archive="cmake-git-version-${TAG}.tgz"
           git archive --format=tar.gz --prefix="cmake-git-version-${TAG}/" --output="$archive" "$TAG"
@@ -65,7 +66,7 @@ jobs:
 
       - name: Test source archive installation
         env:
-          TAG: ${{ inputs.tag }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           LOCAL="$(mktemp -d)"
@@ -77,7 +78,7 @@ jobs:
 
           installed="$USERCODE/CgvFindVersion.cmake"
           test -f "$installed"
-          expected="# cmake-git-version $TAG"
+          expected="# cmake-git-version $VERSION"
           actual="$(tail -n 1 "$installed")"
           if [[ "$actual" != "$expected" ]]; then
             echo "Expected final line '$expected', got '$actual'" >&2
@@ -87,5 +88,5 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag }}
-        run: gh release create --draft --target "$GITHUB_SHA" --title "${TAG/#v/Version }" --generate-notes  "$TAG" "$ARCHIVE"
+          VERSION: ${{ inputs.version }}
+        run: gh release create --draft --target "$GITHUB_SHA" --title "Version $VERSION" --generate-notes  "v$VERSION" "$ARCHIVE"
