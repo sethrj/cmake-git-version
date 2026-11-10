@@ -22,7 +22,6 @@ jobs:
         uses: astral-sh/setup-uv@10.3.3
       - name: Install locked test dependencies
         id: install-lock
-        continue-on-error: true
         run: |
           if [[ ! -f "$LOCKFILE" ]]; then
             echo "Lockfile is missing: $LOCKFILE"
@@ -31,19 +30,14 @@ jobs:
           uv venv
           uv pip sync --python .venv/bin/python "$LOCKFILE"
       - name: Generate lockfile
-        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.LOCKFILE) == '' }}
+        id: generate-lock
+        if: ${{ !cancelled() && steps.install-lock.outcome == 'failure' }}
         run: uv pip compile test/requirements.txt --output-file "$LOCKFILE"
       - name: Upload generated lockfile
-        if: ${{ always() && (steps.install-lock.outcome == 'failure' || hashFiles(env.LOCKFILE) == '') }}
+        if: ${{ !cancelled() && steps.generate-lock.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: test-lock
           path: ${{ env.LOCKFILE }}
-          if-no-files-found: warn
-      - name: Require lockfile update
-        if: ${{ steps.install-lock.outcome == 'failure' || hashFiles(env.LOCKFILE) == '' }}
-        run: |
-          echo "Download the test-lock artifact and add it at $LOCKFILE, then rerun CI."
-          exit 1
       - name: Run test
         run: uv run --python .venv/bin/python -m pytest -q test
