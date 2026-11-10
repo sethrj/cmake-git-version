@@ -11,11 +11,11 @@ runs:
   using: composite
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v9
+      uses: actions/setup-python@v7
       with:
         python-version-file: ${{ inputs.python-version-file }}
     - name: Set up uv
-      uses: astral-sh/setup-uv@10.3.3
+      uses: astral-sh/setup-uv@v10.3.3
     - name: Install locked test dependencies
       id: install-lock
       shell: bash
