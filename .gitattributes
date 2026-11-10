@@ -1,0 +1,2 @@
+/.gitattributes export-ignore
+/install.sh export-subst
