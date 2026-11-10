@@ -18,4 +18,4 @@ jobs:
           lockfile: .github/ubuntu-26.lock
           python-version-file: .github/python-version
       - name: Run test
-        run: uv run --python .venv/bin/python -m pytest -q test
+        run: uv run --python .venv/bin/python -m pytest test
