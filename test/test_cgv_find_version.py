@@ -93,9 +93,7 @@ def test_deep_clone_at_tag_has_release_version(tmp_path: Path, annotated: bool) 
     add_tag(source, "v1.2.3", annotated=annotated)
     clone = clone_repository(source, tmp_path / "clone")
 
-    assert (
-        Git(clone)("rev-parse", "--is-shallow-repository").stdout.strip() == "false"
-    )
+    assert Git(clone)("rev-parse", "--is-shallow-repository").stdout.strip() == "false"
     assert run_cmake_version(clone) == ("1.2.3", "1.2.3")
 
 
