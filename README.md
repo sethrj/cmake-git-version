@@ -76,6 +76,8 @@ instructions. A small CMake example that includes this script is in
 - Provide `${projname}_VERSION_STRING` as a fallback during CI runs.
 - For advanced testing, use `${projname}_CGV_CACHE=${version};${ext};${sha};FORCE;`
   to override the typical Git-derived settings.
+- Another advance setting to override is to define the `${projname}_CGV_GIT_DESCRIBE`
+  variable using the output of `git describe --tags`.
 
 ## Codes that use CGV
 

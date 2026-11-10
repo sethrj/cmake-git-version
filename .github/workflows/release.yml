@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: New release tag (for example, v1.2.3 or v1.2.3-rc.1)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-z]+(0|[1-9][0-9]*)?(\.(0|[1-9][0-9]*))*)?$ ]]; then
+            echo "Tag must be compatible with this project's SemVer tags (vMAJOR.MINOR.PATCH with an optional lowercase prerelease)." >&2
+            exit 1
+          fi
+
+          version="${TAG#v}"
+          npx --yes semver@7 "$version" >/dev/null
+
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            echo "Tag already exists: $TAG" >&2
+            exit 1
+          fi
+
+          mapfile -t versions < <(
+            git tag --list 'v*' \
+              | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-z]+(0|[1-9][0-9]*)?(\.(0|[1-9][0-9]*))*)?$' \
+              | sed 's/^v//'
+          )
+
+          if ((${#versions[@]})); then
+            latest="$(npx --yes semver@7 --include-prerelease "${versions[@]}" | tail -n 1)"
+            if ! npx --yes semver@7 --include-prerelease --range=">$latest" "$version" >/dev/null; then
+              echo "Tag must be newer than the latest compatible release: v$latest" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Create local tag and source archive
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          git tag "$TAG"
+          archive="cmake-git-version-${TAG}.tgz"
+          git archive --format=tar.gz --prefix="cmake-git-version-${TAG}/" --output="$archive" "$TAG"
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+
+      - name: Test source archive installation
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          LOCAL="$(mktemp -d)"
+          USERCODE="$(mktemp -d)"
+          trap 'rm -rf "$LOCAL" "$USERCODE"' EXIT
+
+          tar -xzf "$GITHUB_WORKSPACE/$ARCHIVE" --strip-components=1 -C "$LOCAL"
+          (cd "$LOCAL" && ./install.sh "$USERCODE")
+
+          installed="$USERCODE/CgvFindVersion.cmake"
+          test -f "$installed"
+          expected="# cmake-git-version $TAG"
+          actual="$(tail -n 1 "$installed")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Expected final line '$expected', got '$actual'" >&2
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release create --draft --target "$GITHUB_SHA" --title "${TAG/#v/Version }" --generate-notes  "$TAG" "$ARCHIVE"

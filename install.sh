@@ -13,11 +13,18 @@ if [ ! -d "$1" ]; then
   exit 2
 fi
 
+
+GIT_DESCR='$Format:%(describe:tags)$'
+
 SRC="$(dirname "$0")/CgvFindVersion.cmake"
 DST="$1/CgvFindVersion.cmake"
 cp "$SRC" "$DST"
 echo "-- Copied script to $DST" >&2
-VERSION="$(cmake -D ONLY=VERSION_STRING -P $SRC  3>&2 2>&1 1>&3)"
+EXTRA_DEFS=""
+if [ "${GIT_DESCR#\$}" = "$GIT_DESCR" ]; then
+  EXTRA_DEFS="-DLOCAL_CGV_GIT_DESCRIBE=$GIT_DESCR"
+fi
+VERSION="$(cmake -D ONLY=VERSION_STRING $EXTRA_DEFS -P "$SRC"  3>&2 2>&1 1>&3)"
 printf "\n# cmake-git-version ${VERSION}\n" >> "${DST}"
 
 GITATTR="$1/.gitattributes"
