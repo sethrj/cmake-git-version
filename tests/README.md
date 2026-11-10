@@ -1,14 +1,14 @@
 # Tests
 
-The tests require Python 3, CMake, and Git on `PATH`. They create temporary Git
-repositories and clones; the working checkout is not modified.
+The tests require Python 3.12 or newer, CMake, and Git on `PATH`. They create
+temporary Git repositories and clones; the working checkout is not modified.
 
 ## With uv
 
 From the repository root:
 
 ```console
-uv venv
+uv venv --python 3.12
 uv pip install --python .venv/bin/python -r tests/requirements.txt
 uv run --python .venv/bin/python -m pytest -q tests
 ```
@@ -18,7 +18,7 @@ uv run --python .venv/bin/python -m pytest -q tests
 From the repository root:
 
 ```console
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r tests/requirements.txt
 python -m pytest -q tests

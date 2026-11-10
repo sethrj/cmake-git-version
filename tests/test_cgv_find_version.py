@@ -1,4 +1,5 @@
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -8,51 +9,63 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPOSITORY_ROOT / "CgvFindVersion.cmake"
 
 
-def run_git(directory, *arguments):
-    return subprocess.run(
-        ["git", *arguments],
-        cwd=directory,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+# Helpers
+class Git:
+    def __init__(self, directory: Path | None = None) -> None:
+        self.directory = directory
+        git_path = shutil.which("git")
+        if git_path is None:
+            raise FileNotFoundError("git executable not found")
+        self.git_path = Path(git_path).resolve()
+
+    def __call__(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(self.git_path), *arguments],
+            cwd=self.directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
 
-def create_repository(directory):
+def create_repository(directory: Path) -> Path:
     directory.mkdir()
-    run_git(directory.parent, "init", str(directory))
-    run_git(directory, "checkout", "-b", "main")
-    run_git(directory, "config", "user.name", "CgvFindVersion Tests")
-    run_git(directory, "config", "user.email", "cgv-tests@example.invalid")
+    Git()("init", str(directory))
+    git = Git(directory)
+    git("checkout", "-b", "main")
+    git("config", "user.name", "CgvFindVersion Tests")
+    git("config", "user.email", "cgv-tests@example.invalid")
     commit(directory, "initial")
     return directory
 
 
-def commit(directory, message):
+def commit(directory: Path, message: str) -> None:
     revision_file = directory / "revision.txt"
     previous_revision = int(revision_file.read_text()) if revision_file.exists() else 0
     revision_file.write_text(f"{previous_revision + 1}\n")
-    run_git(directory, "add", "revision.txt")
-    run_git(directory, "commit", "--quiet", "-m", message)
+    git = Git(directory)
+    git("add", "revision.txt")
+    git("commit", "--quiet", "-m", message)
 
 
-def clone_repository(source, destination, shallow=False):
+def clone_repository(source: Path, destination: Path, shallow: bool = False) -> Path:
     arguments = ["clone", "--quiet"]
     if shallow:
         arguments.extend(["--depth=1"])
     arguments.extend([source.resolve().as_uri(), str(destination)])
-    run_git(source.parent, *arguments)
+    Git(source.parent)(*arguments)
     return destination
 
 
-def add_tag(directory, tag, annotated=False):
+def add_tag(directory: Path, tag: str, annotated: bool = False) -> None:
+    git = Git(directory)
     if annotated:
-        run_git(directory, "tag", "--annotate", tag, "--message", tag)
+        git("tag", "--annotate", tag, "--message", tag)
     else:
-        run_git(directory, "tag", tag)
+        git("tag", tag)
 
 
-def run_cmake_version(directory, *definitions):
+def run_cmake_version(directory: Path, *definitions: str) -> tuple[str, str]:
     result = subprocess.run(
         ["cmake", *definitions, "-DSOURCE_DIR=.", "-P", str(SCRIPT_PATH)],
         cwd=directory,
@@ -68,24 +81,25 @@ def run_cmake_version(directory, *definitions):
     return version.group(1), version_string.group(1)
 
 
-def assert_shallow_clone(directory):
-    result = run_git(directory, "rev-parse", "--is-shallow-repository")
+def assert_shallow_clone(directory: Path) -> None:
+    result = Git(directory)("rev-parse", "--is-shallow-repository")
     assert result.stdout.strip() == "true"
 
 
+# Tests
 @pytest.mark.parametrize("annotated", [False, True], ids=["lightweight", "annotated"])
-def test_deep_clone_at_tag_has_release_version(tmp_path, annotated):
+def test_deep_clone_at_tag_has_release_version(tmp_path: Path, annotated: bool) -> None:
     source = create_repository(tmp_path / "source")
     add_tag(source, "v1.2.3", annotated=annotated)
     clone = clone_repository(source, tmp_path / "clone")
 
     assert (
-        run_git(clone, "rev-parse", "--is-shallow-repository").stdout.strip() == "false"
+        Git(clone)("rev-parse", "--is-shallow-repository").stdout.strip() == "false"
     )
     assert run_cmake_version(clone) == ("1.2.3", "1.2.3")
 
 
-def test_deep_clone_after_tag_includes_distance_branch_and_hash(tmp_path):
+def test_deep_clone_after_tag_includes_distance_branch_and_hash(tmp_path: Path) -> None:
     source = create_repository(tmp_path / "source")
     add_tag(source, "v1.2.3")
     commit(source, "change one")
@@ -103,8 +117,8 @@ def test_deep_clone_after_tag_includes_distance_branch_and_hash(tmp_path):
     ids=["default-version", "fallback-version"],
 )
 def test_deep_clone_without_tags_uses_hash_and_fallback(
-    tmp_path, fallback, expected_version
-):
+    tmp_path: Path, fallback: str | None, expected_version: str
+) -> None:
     source = create_repository(tmp_path / "source")
     commit(source, "another commit")
     clone = clone_repository(source, tmp_path / "clone")
@@ -115,7 +129,7 @@ def test_deep_clone_without_tags_uses_hash_and_fallback(
     assert re.fullmatch(rf"{re.escape(expected_version)}\+[0-9a-f]+", version_string)
 
 
-def test_shallow_clone_with_tag_at_head_has_release_version(tmp_path):
+def test_shallow_clone_with_tag_at_head_has_release_version(tmp_path: Path) -> None:
     source = create_repository(tmp_path / "source")
     add_tag(source, "v2.3.4")
     clone = clone_repository(source, tmp_path / "clone", shallow=True)
@@ -124,7 +138,7 @@ def test_shallow_clone_with_tag_at_head_has_release_version(tmp_path):
     assert run_cmake_version(clone) == ("2.3.4", "2.3.4")
 
 
-def test_shallow_clone_without_tags_uses_fallback_and_hash(tmp_path):
+def test_shallow_clone_without_tags_uses_fallback_and_hash(tmp_path: Path) -> None:
     source = create_repository(tmp_path / "source")
     commit(source, "another commit")
     clone = clone_repository(source, tmp_path / "clone", shallow=True)
@@ -135,14 +149,14 @@ def test_shallow_clone_without_tags_uses_fallback_and_hash(tmp_path):
     assert re.fullmatch(r"5\.6\.7\+[0-9a-f]+", version_string)
 
 
-def test_shallow_clone_ignores_tag_beyond_shallow_boundary(tmp_path):
+def test_shallow_clone_ignores_tag_beyond_shallow_boundary(tmp_path: Path) -> None:
     source = create_repository(tmp_path / "source")
     add_tag(source, "v1.0.0")
     commit(source, "untagged head")
     clone = clone_repository(source, tmp_path / "clone", shallow=True)
 
     assert_shallow_clone(clone)
-    assert run_git(clone, "tag", "--list").stdout.strip() == ""
+    assert Git(clone)("tag", "--list").stdout.strip() == ""
     version, version_string = run_cmake_version(clone, "-DLOCAL_VERSION=6.7.8")
     assert version == "6.7.8"
     assert re.fullmatch(r"6\.7\.8\+[0-9a-f]+", version_string)
