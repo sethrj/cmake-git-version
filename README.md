@@ -62,6 +62,14 @@ cmake -DONLY=VERSION -P CgvFindVersion.cmake
 ```
 which writes the parsed version to stderr.
 
+## Options
+
+- Undefine `${projname}_CGV_CACHE` or set to empty/false to force regeneration.
+  This is good to have in CMakePresets.cmake.
+- Provide `${projname}_VERSION_STRING` as a fallback during CI runs.
+- For advanced testing, use `${projname}_CGV_CACHE=${version};${ext};${sha};FORCE;`
+  to override the typical Git-derived settings.
+
 ## Codes that use CGV
 
 - [Celeritas](https://github.com/celeritas-project/celeritas)
