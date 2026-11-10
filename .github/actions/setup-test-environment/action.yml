@@ -37,7 +37,7 @@ runs:
       run: uv pip compile test/requirements.txt --output-file "$LOCKFILE"
     - name: Upload generated lockfile
       if: ${{ !cancelled() && steps.generate-lock.outcome == 'success' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-lock
         path: ${{ inputs.lockfile }}
