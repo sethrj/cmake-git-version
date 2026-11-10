@@ -67,7 +67,7 @@ which writes the parsed version to stderr.
 The pytest suite exercises the script against temporary deep and shallow Git
 clones. See [tests/README.md](tests/README.md) for environment setup and run
 instructions. A small CMake example that includes this script is in
-`tests/example` and uses the Git metadata from this repository checkout.
+`example` and uses the Git metadata from this repository checkout.
 
 ## Options
 

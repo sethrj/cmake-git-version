@@ -29,7 +29,7 @@ python -m pytest -q tests
 Configure the example from the repository root:
 
 ```console
-cmake -S tests/example -B build/cgv-example
+cmake -S example -B build/cgv-example
 ```
 
 The example includes the root `CgvFindVersion.cmake` directly, so it reports
